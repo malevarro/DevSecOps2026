@@ -4,6 +4,40 @@ Docente: Manuel Alejandro Vargas Rojas — manuelvargasrojas@cedoc.edu.co
 Duración: 90 minutos + actividad final de threat modeling
 
 ---
+## Tabla de Contenido
+
+- [Guía de Laboratorio — Sesión 1](#guía-de-laboratorio--sesión-1)
+  - [Tabla de Contenido](#tabla-de-contenido)
+  - [Objetivos del laboratorio](#objetivos-del-laboratorio)
+  - [Prerrequisitos](#prerrequisitos)
+  - [Arquitectura que construirás](#arquitectura-que-construirás)
+  - [Actividad 0 — Preparación (5 min)](#actividad-0--preparación-5-min)
+  - [Actividad 1 — Identidades, roles y perfiles con RBAC (20 min)](#actividad-1--identidades-roles-y-perfiles-con-rbac-20-min)
+    - [1.1 Crear usuarios en Microsoft Entra ID (portal)](#11-crear-usuarios-en-microsoft-entra-id-portal)
+    - [1.2 Crear un grupo y agregar miembros](#12-crear-un-grupo-y-agregar-miembros)
+    - [1.3 Desplegar el App Service](#13-desplegar-el-app-service)
+    - [1.4 Asignar roles con alcances diferentes](#14-asignar-roles-con-alcances-diferentes)
+    - [1.5 Validar el menor privilegio](#15-validar-el-menor-privilegio)
+  - [Actividad 2 — Identidad administrada del App Service + Key Vault references (20 min)](#actividad-2--identidad-administrada-del-app-service--key-vault-references-20-min)
+    - [2.1 Crear el Key Vault y el secreto](#21-crear-el-key-vault-y-el-secreto)
+    - [2.2 Habilitar la identidad administrada del App Service](#22-habilitar-la-identidad-administrada-del-app-service)
+    - [2.3 Autorizar la identidad de la app en el Key Vault](#23-autorizar-la-identidad-de-la-app-en-el-key-vault)
+    - [2.4 Consumir el secreto con una Key Vault reference](#24-consumir-el-secreto-con-una-key-vault-reference)
+  - [Actividad 3 — Azure Policy: plantilla integrada + política personalizada (15 min)](#actividad-3--azure-policy-plantilla-integrada--política-personalizada-15-min)
+    - [3.1 Asignar una plantilla integrada (portal)](#31-asignar-una-plantilla-integrada-portal)
+    - [3.2 Crear y asignar una política personalizada para App Service](#32-crear-y-asignar-una-política-personalizada-para-app-service)
+  - [Actividad 4 — CSPM: Defender for Cloud + Prowler (20 min)](#actividad-4--cspm-defender-for-cloud--prowler-20-min)
+    - [4.1 Microsoft Defender for Cloud (10 min)](#41-microsoft-defender-for-cloud-10-min)
+    - [4.2 Prowler (10 min)](#42-prowler-10-min)
+  - [Actividad 5 — Threat modeling con OWASP Threat Dragon (en clase o autónoma)](#actividad-5--threat-modeling-con-owasp-threat-dragon-en-clase-o-autónoma)
+    - [5.1 Instalar / abrir Threat Dragon](#51-instalar--abrir-threat-dragon)
+    - [5.2 Crear el modelo](#52-crear-el-modelo)
+    - [5.3 Dibujar el DFD del laboratorio](#53-dibujar-el-dfd-del-laboratorio)
+    - [5.4 Identificar y documentar amenazas](#54-identificar-y-documentar-amenazas)
+    - [5.5 Entregable](#55-entregable)
+  - [Limpieza de recursos (¡importante!)](#limpieza-de-recursos-importante)
+  - [Solución de problemas frecuentes](#solución-de-problemas-frecuentes)
+  - [Referencias](#referencias)
 
 ## Objetivos del laboratorio
 

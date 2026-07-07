@@ -22,6 +22,7 @@ Material de curso de posgrado en **Seguridad en Nubes Públicas / DevSecOps**, o
 1. **Sesión 1** — Identidad, RBAC, gobierno (Azure Policy) y postura de seguridad (CSPM) sobre un App Service + Key Vault. Cierra con threat modeling STRIDE.
 2. **Sesión 2** — Se construye una arquitectura de red segmentada (Hub & Spoke con Zentyal como firewall/IDS-IPS) y se despliega sobre ella la aplicación PaaS de tres capas, validando la microsegmentación.
 3. **Sesión 3** — Sobre la misma red del Laboratorio 2, se ejecutan escaneos SCA/SAST/DAST/IAST contenerizados en ACI contra aplicaciones deliberadamente vulnerables, cerrando el ciclo hallazgo → remediación → re-escaneo.
+4. **Sesión 4** - En Construcción
 
 Cada guía incluye: objetivos, prerrequisitos, arquitectura de referencia, pasos con comandos de Azure CLI (y equivalentes por portal), preguntas de verificación, solución de problemas frecuentes, checklist de finalización y referencias oficiales.
 
@@ -46,4 +47,4 @@ Abre la guía de la sesión correspondiente y sigue las actividades en orden; ca
 
 ## Licencia y uso
 
-Material de uso académico, elaborado para el curso de posgrado. Si reutilizas o adaptas estas guías, por favor conserva la referencia al autor original.
+Material de uso académico, elaborado para el curso de DevSecOps. Si reutilizas o adaptas estas guías, por favor conserva la referencia al autor original.
