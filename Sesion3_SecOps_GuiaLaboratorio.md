@@ -53,12 +53,15 @@
       - [Resultados Directos de Escaneos](#resultados-directos-de-escaneos)
   - [Parte 3 – SCA y contenedores con Trivy en ACI](#parte-3--sca-y-contenedores-con-trivy-en-aci)
   - [Parte 4 – SAST de IaC con Checkov en ACI](#parte-4--sast-de-iac-con-checkov-en-aci)
-  - [Parte 6 – DAST con OWASP ZAP en ACI](#parte-6--dast-con-owasp-zap-en-aci)
-    - [6.1 – Construir la imagen de la app sin Docker local (ACR Tasks)](#61--construir-la-imagen-de-la-app-sin-docker-local-acr-tasks)
-    - [6.2 – Desplegar MongoDB y la app en la red privada](#62--desplegar-mongodb-y-la-app-en-la-red-privada)
-    - [6.3 – Ejecutar OWASP ZAP (baseline) contra la app privada](#63--ejecutar-owasp-zap-baseline-contra-la-app-privada)
+  - [Parte 5 – DAST con OWASP ZAP en ACI](#parte-5--dast-con-owasp-zap-en-aci)
+    - [5.1 – Desplegar DVWA en la red privada](#51--desplegar-dvwa-en-la-red-privada)
+    - [5.2 – Ejecutar OWASP ZAP (baseline) contra DVWA](#52--ejecutar-owasp-zap-baseline-contra-dvwa)
+  - [Parte 6 – Explotación manual de DVWA (Command Injection y SQL Injection)](#parte-6--explotación-manual-de-dvwa-command-injection-y-sql-injection)
+    - [6.0 – Preparación](#60--preparación)
+    - [6.1 – Command Injection](#61--command-injection)
+    - [6.2 – SQL Injection](#62--sql-injection)
+    - [6.3 – Cierre: manual vs. automático](#63--cierre-manual-vs-automático)
   - [Parte 7 – IAST (concepto y demostración)](#parte-7--iast-concepto-y-demostración)
-  - [Parte 8 – AzureGoat: despliegue opcional en Azure](#parte-8--azuregoat-despliegue-opcional-en-azure)
   - [Recoger los reportes y acceder a las UIs](#recoger-los-reportes-y-acceder-a-las-uis)
   - [Remediación y re-escaneo](#remediación-y-re-escaneo)
   - [Limpieza](#limpieza)
@@ -79,7 +82,6 @@ Al finalizar, el estudiante será capaz de:
 - Ejecutar **Trivy, Checkov, SonarQube y OWASP ZAP como contenedores en ACI**, en la red privada del Lab 2, con **egreso a través de Zentyal (UDR, sin NAT Gateway)**, y recoger sus reportes desde **Azure Files**.
 - Habilitar **acceso remoto seguro** a todas las redes privadas de la arquitectura (incluidas las UIs de los ACI) mediante **Tailscale**, con **VM-Spoke1** como *subnet router*.
 - Comprender y demostrar el enfoque **IAST**.
-- **Opcionalmente**, desplegar AzureGoat con Terraform y auditar la infraestructura real (DAST + CSPM).
 - Priorizar y remediar hallazgos, y verificar la corrección con un re-escaneo.
 
 ---
@@ -108,7 +110,7 @@ Al finalizar, el estudiante será capaz de:
         ┌───────────────┐   subnet router          │    │    └── VM-Spoke1  ◄── Tailscale subnet rtr │
         │  Tailnet       │◄────────────────────────┤    └── AciSubnet 10.1.3.0/24 (delegada ACI)    │
         └───────────────┘   anuncia 10.0/16,       │         ├── SonarQube (UI :9000) ◄─ Tailscale  │
-                            10.1/16, 10.2/16       │         ├── nodejs-goof (app :3001) ◄─ Tailscale│
+                            10.1/16, 10.2/16       │         ├── web-dvwa (app :80) ◄─ Tailscale     │
                                                    │         ├── Trivy / Checkov / ZAP (jobs)        │
    Reportes: Azure Files ◄── az storage download   │         └── reportes ─► Azure Files (share)     │
                                                    │   Egreso de ACI: UDR RT-Spoke1 → Zentyal (NAT)  │
@@ -118,9 +120,9 @@ Al finalizar, el estudiante será capaz de:
 - **Nada corre en Docker local.** Cada herramienta es un **container group** en ACI.
 - Las ACI viven en una **subred delegada** dentro de la red del Lab 2; obtienen **IP privada** (ACI en VNet **no admite IP pública**), por lo que ZAP escanea la app por la **red privada**.
 - **Egreso por Zentyal (sin NAT Gateway):** la `AciSubnet` usa la **UDR del Lab 2 (`RT-Spoke1`, `0.0.0.0/0 → Zentyal`)**, de modo que la salida a Internet de las ACI (pull de imágenes, bases de CVE) pasa por el firewall del laboratorio, igual que el resto de las cargas. *(Microsoft documenta el egreso de ACI a través de una UDR hacia un firewall/NVA; ver Referencias.)*
-- **Acceso remoto con Tailscale:** la **VM-Spoke1** (ya desplegada en el Lab 2) actúa como *subnet router* y anuncia las redes privadas (`10.0.0.0/16`, `10.1.0.0/16`, `10.2.0.0/16`). El equipo del estudiante, con el cliente Tailscale, alcanza **cualquier IP privada** de la arquitectura, **incluidas las UIs de los ACI** (SonarQube `:9000`, la app `:3001`).
+- **Acceso remoto con Tailscale:** la **VM-Spoke1** (ya desplegada en el Lab 2) actúa como *subnet router* y anuncia las redes privadas (`10.0.0.0/16`, `10.1.0.0/16`, `10.2.0.0/16`). El equipo del estudiante, con el cliente Tailscale, alcanza **cualquier IP privada** de la arquitectura, **incluidas las UIs de los ACI** (SonarQube `:9000`, la app DVWA `:80`).
 - Los **artefactos de reporte** (JSON/HTML) se escriben a **Azure Files** y se descargan; las **interfaces web** se consumen por **Tailscale**.
-- La **construcción** de la imagen de la app se hace en la nube con **ACR Tasks** (`az acr build`) — sin Docker local.
+- Las **imágenes** de la app se sirven desde el **ACR privado** (importadas con `az acr import` o construidas en la nube con `az acr build`) — sin Docker local.
 
 ---
 
@@ -259,7 +261,7 @@ Desde el equipo del estudiante, con Tailscale conectado:
 ping 10.1.0.4
 ```
 
-Más adelante, cuando los ACI estén desplegados, podrás abrir en el navegador del equipo, por ejemplo, `http://<IP-privada-SonarQube>:9000` y `http://<IP-privada-app>:3001` — todo por la red privada, sin exponer nada a Internet.
+Más adelante, cuando los ACI estén desplegados, podrás abrir en el navegador del equipo, por ejemplo, `http://<IP-privada-SonarQube>:9000` y `http://<IP-privada-app>/` (DVWA en el puerto 80) — todo por la red privada, sin exponer nada a Internet.
 
 ### D. Clonar el código fuente al recurso compartido
 
@@ -656,58 +658,160 @@ az container delete -g $RG -n trivy-iac --yes
 
 ---
 
-## Parte 6 – DAST con OWASP ZAP en ACI
+## Parte 5 – DAST con OWASP ZAP en ACI
 
-Ponemos la app a correr **como ACI** y la atacamos desde otro **ACI con OWASP ZAP**, todo por la **red privada** del Lab 2.
+Ponemos la aplicación vulnerable **DVWA** (*Damn Vulnerable Web Application*) a correr **como ACI** y la atacamos desde otro **ACI con OWASP ZAP**, todo por la **red privada** del Lab 2. Usamos la imagen `acrlab3mavr.azurecr.io/web-dvwa:latest`, una **copia de `vulnerables/web-dvwa`** ya alojada en el **ACR privado** del laboratorio.
 
-### 6.1 – Construir la imagen de la app sin Docker local (ACR Tasks)
+### 5.1 – Desplegar DVWA en la red privada
+
+DVWA trae su propia base de datos MySQL **dentro de la misma imagen** y escucha en el puerto **80**; no hace falta un contenedor de base de datos aparte.
+
 ```bash
-# ACR construye la imagen directamente desde tu repo de GitHub (en la nube)
-az acr build --registry $ACR --image nodejs-goof:latest \
-  https://github.com/$GH/nodejs-goof.git
-export ACR_SERVER=$(az acr show -n $ACR --query loginServer -o tsv)
-export ACR_USER=$(az acr credential show -n $ACR --query username -o tsv)
-export ACR_PASS=$(az acr credential show -n $ACR --query "passwords[0].value" -o tsv)
-```
-
-### 6.2 – Desplegar MongoDB y la app en la red privada
-```bash
-# Mongo (imagen pública)
-az container create --resource-group $RG --name goof-mongo \
-  --image mongo:5 --restart-policy Always --ports 27017 \
+# App web-dvwa desde el ACR privado (acrlab3mavr.azurecr.io/web-dvwa:latest)
+az container create --resource-group $RG --name web-dvwa \
+  --image "acrlab3mavr.azurecr.io/web-dvwa:latest" --restart-policy Always --ports 80 \
+  --cpu 1 --memory 1 --os-type Linux \
+  --registry-login-server acrlab3mavr.azurecr.io \
+  --registry-username acrlab3mavr \
   --vnet $SPOKE1 --subnet $ACI_SUBNET
-export MONGO_IP=$(az container show -g $RG -n goof-mongo --query "ipAddress.ip" -o tsv)
-
-# App nodejs-goof desde el ACR privado, apuntando a Mongo por IP privada
-az container create --resource-group $RG --name goof-app \
-  --image "$ACR_SERVER/nodejs-goof:latest" --restart-policy Always --ports 3001 \
-  --registry-login-server $ACR_SERVER --registry-username $ACR_USER --registry-password "$ACR_PASS" \
-  --vnet $SPOKE1 --subnet $ACI_SUBNET \
-  --environment-variables MONGODB="mongodb://$MONGO_IP:27017/todos"
-export APP_IP=$(az container show -g $RG -n goof-app --query "ipAddress.ip" -o tsv)
-echo "App privada (por Tailscale) en: http://$APP_IP:3001"
+export APP_IP=$(az container show -g $RG -n web-dvwa --query "ipAddress.ip" -o tsv)
+echo "DVWA privada (por Tailscale) en: http://$APP_IP/"
 ```
 
-> El nombre de la variable de conexión (`MONGODB`) puede variar según el repo; verifica el `README`/`docker-compose` de nodejs-goof y ajústalo.
->
-> **Acceso manual por Tailscale:** con Tailscale conectado puedes abrir `http://$APP_IP:3001` en el navegador del equipo para explorar la app vulnerable manualmente antes o después del escaneo DAST.
+> **Acceso manual por Tailscale:** con Tailscale conectado abre `http://$APP_IP/` en el navegador del equipo. Inicia sesión con las credenciales por defecto de DVWA (`admin` / `password`), pulsa **Create / Reset Database** y ajusta el **DVWA Security** al nivel deseado (*low/medium/high*) antes o después del escaneo DAST.
 
-### 6.3 – Ejecutar OWASP ZAP (baseline) contra la app privada
+### 5.2 – Ejecutar OWASP ZAP (baseline) contra DVWA
+
 ```bash
 az container create --resource-group $RG --name zap-scan \
   --image ghcr.io/zaproxy/zaproxy:stable --restart-policy Never \
-  --vnet $SPOKE1 --subnet $ACI_SUBNET \
+  --vnet $SPOKE1 --subnet $ACI_SUBNET --cpu 1 --memory 1 --os-type Linux \
   --azure-file-volume-account-name $SA --azure-file-volume-account-key "$SA_KEY" \
   --azure-file-volume-share-name reports --azure-file-volume-mount-path /zap/wrk \
-  --command-line "zap-baseline.py -t http://$APP_IP:3001 -r zap-report.html"
+  --command-line "zap-baseline.py -t http://$APP_IP/ -r zap-report.html"
 
 az container logs -g $RG -n zap-scan          # resumen WARN/FAIL por regla
 az container delete -g $RG -n zap-scan --yes
 ```
 
-Descarga `zap-report.html` desde Azure Files. Hallazgos típicos: cabeceras ausentes (CSP, X-Frame-Options), cookies sin `HttpOnly/Secure`, XSS reflejado → **A05/A02/A07**.
+Descarga `zap-report.html` desde Azure Files. Hallazgos típicos en DVWA: cabeceras ausentes (CSP, X-Frame-Options), cookies sin `HttpOnly/Secure`, XSS reflejado, formularios sin protección CSRF → **A05/A02/A07/A01**.
 
 **Compara SAST vs DAST:** ¿un mismo problema (p. ej. XSS) lo vieron SonarQube (línea de código, posible falso positivo) y ZAP (confirmado en runtime)? ¿Por qué cada uno lo ve distinto?
+
+---
+
+## Parte 6 – Explotación manual de DVWA (Command Injection y SQL Injection)
+
+> ⚠️ **Alcance y ética.** Todo lo de esta parte se ejecuta **únicamente** contra la instancia de **DVWA del laboratorio** (`web-dvwa`, desplegada en la Parte 6, sin IP pública y accesible solo por Tailscale). Estas técnicas contra cualquier sistema sin autorización explícita son un delito. DVWA existe precisamente para practicarlas en un entorno controlado.
+
+Mientras la Parte 6 lanzó un DAST **automático** (ZAP baseline), aquí hacemos el **DAST manual**: explotamos a mano dos de las vulnerabilidades más representativas — **Command Injection** y **SQL Injection**, ambas **OWASP Top 10 → A03 Injection** — recorriendo los cuatro niveles de seguridad de DVWA (*low → medium → high → impossible*). Ver el código de cada nivel con **View Source** (abajo a la derecha en cada reto) es la clave: cada nivel añade un filtro y el objetivo es entender **por qué** el filtro es (o no es) suficiente.
+
+### 6.0 – Preparación
+
+1. Con **Tailscale conectado**, abre DVWA en el navegador del equipo: `http://$APP_IP/` (la IP privada que imprimió la Parte 6.2; obtenla de nuevo con `az container show -g $RG -n web-dvwa --query ipAddress.ip -o tsv`).
+2. Inicia sesión con `admin` / `password`. Si es la primera vez, pulsa **Create / Reset Database**.
+3. Ve a **DVWA Security** (menú izquierdo) y empieza en **Low**. Irás subiendo el nivel a medida que avances.
+
+> **Sin instalar nada.** Los niveles *medium* y *high* requieren **modificar la petición HTTP**. En este laboratorio no usamos Burp Suite; en su lugar aprovechamos herramientas ya presentes: las **DevTools del navegador** (pestaña **Network → Edit and Resend**, disponible en Firefox/Edge) o **`curl`**, que viene incluido con **Git for Windows**. Ambas bastan para interceptar/reproducir la petición con la cookie de sesión.
+
+---
+
+### 6.1 – Command Injection
+
+Ingresar a la aplicación y en e menú de la izquierda seleccionar la opción de "Command Injection"; como se muesta a continuación:
+
+![dvwa1](./Images/dvwa1.png)
+
+El formulario pide una **IP** y el servidor ejecuta `ping` hacia ella con `shell_exec`. Si la entrada no se valida, podemos **encadenar** un segundo comando al `ping`.
+
+**Nivel Low.** No hay filtro. Primero comprueba el comportamiento normal introduciendo `127.0.0.1` (verás la salida del `ping`). Luego encadena un comando arbitrario usando un separador de shell:
+
+```text
+127.0.0.1 ; cat /etc/passwd
+127.0.0.1 && cat /etc/passwd
+```
+
+El `;` ejecuta el segundo comando de forma incondicional; el `&&` lo ejecuta solo si el `ping` tuvo éxito. En ambos casos deberías ver el contenido de `/etc/passwd` **debajo** de la salida del ping: prueba de ejecución remota de comandos.
+
+**Nivel Medium.** El código introduce un `str_replace` que **elimina `&&` y `;`**. La lista negra es incompleta: no filtra el **pipe**. Encadena con `|`, que envía la salida del `ping` como entrada del segundo comando (y muestra la de este último):
+
+```text
+127.0.0.1 | cat /etc/passwd
+```
+
+**Nivel High.** Ahora la lista negra cubre más caracteres (`&`, `;`, `|`, entre otros) **pero con un detalle**: filtra `"| "` (pipe **seguido de espacio**), no `"|"` a secas. Basta con **quitar el espacio** tras el pipe para evadir el filtro:
+
+```text
+127.0.0.1 |cat /etc/passwd
+```
+
+> La lección de *high* es que **una lista negra mal escrita da falsa sensación de seguridad**: un solo carácter (el espacio) marca la diferencia entre "filtrado" y "explotable".
+
+**Nivel Impossible (patrón seguro).** El código **descompone la IP en sus cuatro octetos, valida que cada uno sea numérico y la reconstruye** antes de usarla. Al procesar *solo* una IP válida por diseño, no queda superficie para inyectar `|`, `;` ni nada más. Este es el objetivo de remediación: **validación estricta por lista blanca / whitelisting**, no parches de blacklist.
+
+**Mapeo OWASP:** A03 – Injection. **Corrección real:** evitar `shell_exec` con entrada del usuario; si es imprescindible, validar contra una lista blanca estricta y usar APIs que no invoquen un shell (p. ej. `escapeshellarg` no basta por sí solo frente a todos los casos).
+
+---
+
+### 6.2 – SQL Injection
+
+Ingresar a la aplicación y en e menú de la izquierda seleccionar la opción de "SQL Injection"; como se muesta a continuación:
+
+![dvwa2](./Images/dvwa2.png)
+
+El formulario pide un **User ID** que el servidor incrusta directamente en una consulta `SELECT` para devolver el nombre del usuario. Sin saneamiento, podemos **reescribir la lógica de la consulta**.
+
+**Nivel Low.** Comprueba el comportamiento normal con `1` (devuelve un usuario). Luego fuerza una condición **siempre verdadera** para volcar todos los registros:
+
+```text
+1' OR '1'='1'#
+```
+
+La comilla cierra el literal del ID, `OR '1'='1'` hace la condición universal y `#` comenta el resto de la consulta original. A partir de aquí usamos **UNION** para leer datos de otras tablas (el `SELECT` original devuelve dos columnas, así que nuestros `UNION SELECT` también deben devolver dos):
+
+```text
+' UNION SELECT table_name, NULL FROM information_schema.tables #
+' UNION SELECT column_name, NULL FROM information_schema.columns WHERE table_name='users' #
+' UNION SELECT user, password FROM users #
+```
+
+El primero **enumera las tablas** de la base de datos; el segundo **lista las columnas** de la tabla `users` (verás `user`, `password`, …); el tercero **vuelca usuarios y sus hashes de contraseña**. Esos hashes (MD5 en DVWA) se pueden crackear luego offline — demostrando el impacto real de una SQLi.
+
+**Nivel Medium.** El código aplica `mysqli_real_escape_string` (escapa comillas) y cambia el campo por un **desplegable** con un valor numérico. Como el `id` se usa en **contexto numérico y sin comillas**, no necesitamos comillas en el payload; y como el desplegable impide teclear libremente, **interceptamos la petición** y cambiamos el parámetro. Con Git for Windows:
+
+```bash
+# Sustituye <IP>, la cookie de sesión (cópiala desde DevTools → Application/Storage → Cookies)
+# y el nivel de seguridad. El payload va URL-encodeado.
+curl "http://<IP>/vulnerabilities/sqli/?id=1+UNION+SELECT+user,password+FROM+users+%23&Submit=Submit" \
+  -H "Cookie: PHPSESSID=<tu-phpsessid>; security=medium"
+```
+
+> Alternativa sin `curl`: en **DevTools → Network**, seleccionar la petición del formulario, **Edit and Resend**, y reemplazar el valor de `id` por `1 UNION SELECT user, password FROM users #`. El resultado aparece en el cuerpo de la respuesta.
+
+**Nivel High.** El ID no se envía por el mismo formulario: se fija en una **variable de sesión** a través de una ventana aparte (el enlace *"Click here to change your ID"*). El saneamiento es más laxo ahí, así que inyectamos el mismo UNION en esa ventana:
+
+```text
+' UNION SELECT user, password FROM users #
+```
+
+Tras enviarlo, el reto principal usará ese valor de sesión y mostrará usuarios y hashes.
+
+**Nivel Impossible (patrón seguro).** Usa **sentencias preparadas (prepared statements / consultas parametrizadas)** con PDO y valida que el ID sea un entero, además de comprobar el token Anti-CSRF. Con parámetros vinculados, la entrada **nunca** se interpreta como código SQL. Este es el objetivo de remediación.
+
+**Mapeo OWASP:** A03 – Injection. **Corrección real:** consultas parametrizadas / ORM, validación de tipo (entero) por lista blanca, mínimo privilegio en la cuenta de BD y almacenamiento de contraseñas con hashing fuerte (no MD5).
+
+---
+
+### 6.3 – Cierre: manual vs. automático
+
+Contrasta lo que acabas de hacer a mano con el reporte de **ZAP** (Parte 6.3):
+
+- ¿ZAP marcó la Command Injection o la SQL Injection que tú confirmaste manualmente? Un *baseline* de ZAP es pasivo/ligero y puede **no** dispararlas sin un escaneo activo; la explotación manual las **confirma** de forma inequívoca.
+- La explotación manual te da el **payload exacto** y el **dato exfiltrado** (evidencia para el informe); el escaneo automático te da **cobertura amplia** rápidamente. En un pipeline DevSecOps se combinan: DAST automático en cada build + pruebas manuales dirigidas en hitos.
+
+**Entregable de esta parte:** por cada vulnerabilidad (Command Injection y SQL Injection), documenta (1) el nivel de seguridad, (2) el payload usado, (3) una captura del resultado, (4) la categoría OWASP (**A03**) y (5) el patrón de remediación que la neutraliza (el nivel *Impossible*).
+
+> **Fuentes de referencia** (walkthroughs de DVWA en los que se basan estos pasos): Wael Oueslati, *Exploring DVWA — Command Injection Challenge* y *SQL Injection Challenge* (Medium, 2025).
 
 ---
 
@@ -715,33 +819,9 @@ Descarga `zap-report.html` desde Azure Files. Hallazgos típicos: cabeceras ause
 
 El **IAST** instrumenta la app con un **agente** dentro del proceso durante las pruebas: combina la visibilidad del código (SAST) con la ejecución real (DAST), señalando la **línea exacta** de una vulnerabilidad **confirmada en runtime**.
 
-Demostración conceptual: al construir la imagen (Parte 6.1) se podría añadir un **agente IAST** al arranque de Node (`node -r <agente> app.js`). Mientras ZAP recorre la app, el agente correlaciona cada petición externa con la línea de código de la llamada peligrosa (query SQL, comando, deserialización) y la reporta con muy pocos falsos positivos.
+Demostración conceptual: en una imagen instrumentable se añadiría un **agente IAST** al arranque de la aplicación (por ejemplo, cargándolo en el runtime del lenguaje antes de servir peticiones). Mientras ZAP recorre la app, el agente correlaciona cada petición externa con la línea de código de la llamada peligrosa (query SQL, comando, deserialización) y la reporta con muy pocos falsos positivos.
 
 **Discusión:** ¿en qué fase del pipeline encaja IAST? ¿Por qué reduce falsos positivos frente a SAST puro? ¿Qué requiere que SAST no necesita? (instrumentar el runtime).
-
----
-
-## Parte 8 – AzureGoat: despliegue opcional en Azure
-
-> ⚠️ **Solo con autorización, suscripción propia y consciente del costo.** AzureGoat es **vulnerable por diseño**: no lo dejes desplegado. Bórralo al terminar.
-
-El análisis estático de su IaC ya se hizo en la Parte 4. Para practicar DAST/CSPM sobre infraestructura real, desde **Azure Cloud Shell** (trae Terraform):
-
-```bash
-az group create --name azuregoat_app --location $LOC
-cd ~ && git clone https://github.com/$GH/AzureGoat.git && cd AzureGoat
-terraform init
-terraform apply --auto-approve      # imprime la URL de la app desplegada
-```
-
-- **DAST sobre AzureGoat:** repite la Parte 6.3 cambiando `-t` por la URL pública que devolvió Terraform (ZAP en ACI la alcanza por su egreso a través de Zentyal).
-- **CSPM:** audita la infraestructura con **Prowler** (Sesión 1) o **CloudSploit** (Sesión 2) desde Cloud Shell. Contrasta: lo que Checkov atrapó *antes* de desplegar no debería reaparecer si se hubiera corregido — demostración del valor del shift-left.
-
-**Destruir (obligatorio):**
-```bash
-cd ~/AzureGoat && terraform destroy --auto-approve
-az group delete --name azuregoat_app --yes --no-wait
-```
 
 ---
 
@@ -764,7 +844,7 @@ O desde el **portal**: Storage Account `stlab3<iniciales>` → **File shares →
 
 **2. Interfaces web (SonarQube, la app) → Tailscale.** Con el cliente Tailscale conectado (Sección C), abre directamente en el navegador del equipo, por su **IP privada**:
 
-- App nodejs-goof: `http://<IP-privada-app>:3001`
+- App DVWA (`web-dvwa`): `http://<IP-privada-app>/`
 
 Obtén esas IPs con `az container show -g $RG -n <nombre> --query ipAddress.ip -o tsv`. No hay ninguna IP pública ni exposición a Internet: el acceso viaja cifrado por el *subnet router* de VM-Spoke1.
 
@@ -779,7 +859,7 @@ Cierra el ciclo **hallazgo → corrección → verificación** con al menos un e
 | **SCA** | En `nodejs-goof`, actualiza una dependencia vulnerable en `package.json`. | Re-ejecutar `git-clone` + `trivy-fs`: menos CVE. |
 | **SAST** | Parametrizar una consulta o corregir un *hotspot* de SonarQube. | Re-ejecutar `sonar-runner` y revisar en la UI de SonarQube (por Tailscale). |
 | **IaC (AzureGoat)** | Forzar cifrado/https o cerrar un acceso público en el `.tf`. | Re-ejecutar `checkov-azuregoat`: menos políticas fallidas. |
-| **DAST** | Añadir cabeceras de seguridad en la app; reconstruir con `az acr build`. | Redeploy `goof-app` + re-ejecutar `zap-scan`: menos WARN. |
+| **DAST** | Subir el nivel de **DVWA Security** (*low → medium → high*) para activar mitigaciones de la app. | Re-ejecutar `zap-scan` contra `web-dvwa`: menos WARN/FAIL. |
 
 > **Criterio:** documenta qué **remediaste**, qué **mitigaste** y qué **aceptaste** con justificación (gestión de riesgos, Sesión 1).
 
@@ -792,17 +872,13 @@ Cierra el ciclo **hallazgo → corrección → verificación** con al menos un e
 ```bash
 # Contenedores de larga duración
 az container delete -g $RG -n sonarqube --yes
-az container delete -g $RG -n goof-app --yes
-az container delete -g $RG -n goof-mongo --yes
+az container delete -g $RG -n web-dvwa --yes
 
 # Red y almacenamiento del lab
 az network vnet subnet update -g $RG --vnet-name $SPOKE1 -n $ACI_SUBNET --route-table "" 2>/dev/null
 az network vnet subnet delete -g $RG --vnet-name $SPOKE1 -n $ACI_SUBNET
 az storage account delete -g $RG -n $SA --yes
 az acr delete -g $RG -n $ACR --yes
-
-# AzureGoat, si lo desplegaste (Parte 8)
-# cd ~/AzureGoat && terraform destroy --auto-approve && az group delete --name azuregoat_app --yes
 ```
 
 **Tailscale (opcional, para dejar todo como estaba):**
@@ -832,11 +908,8 @@ En la **consola de administración de Tailscale** elimina los dispositivos `VM-S
 - [ ] Parte 3 – **Trivy en ACI** (imagen + fs); reportes en Azure Files.
 - [ ] Parte 4 – **Checkov/Trivy en ACI** sobre el Terraform de AzureGoat (5+ hallazgos clasificados).
 - [ ] Parte 5 – **SonarQube servidor en ACI** + sonar-scanner; UI revisada **por Tailscale**.
-- [ ] Parte 6 – App construida con `az acr build`, desplegada en ACI, accesible **por Tailscale**, y **OWASP ZAP en ACI** ejecutado.
+- [ ] Parte 6 – **DVWA** (`web-dvwa`) desplegada en ACI desde el ACR privado, accesible **por Tailscale**, y **OWASP ZAP en ACI** ejecutado.
 - [ ] Parte 7 – IAST explicado/demostrado.
-
-**Opcional / avanzado**
-- [ ] Parte 8 – AzureGoat desplegado (Terraform), DAST/CSPM, y **destruido**.
 
 **Cierre**
 - [ ] Una vulnerabilidad remediada por método y re-escaneada.
@@ -854,7 +927,7 @@ En la **consola de administración de Tailscale** elimina los dispositivos `VM-S
 | La ACI no arranca / no baja la imagen | Egreso o DNS | Confirmar que `RT-Spoke1` está asociada a `AciSubnet` y que **Zentyal permite 80/443/53** desde `10.1.0.0/16`; si falla la resolución, añadir `--dns-name-servers 168.63.129.16` al `az container create` |
 | La ACI no monta Azure Files | Falta el service endpoint / regla de red | La subred debe tener `--service-endpoints Microsoft.Storage` y la cuenta la regla de red hacia esa subred |
 | **SonarQube** no queda *operational* | Elasticsearch requiere `vm.max_map_count` (no ajustable en ACI) | Usar el **fallback a SonarCloud** (scanner en ACI, servidor SaaS) con `SONAR_HOST_URL="https://sonarcloud.io"` |
-| ZAP no alcanza la app | IP privada incorrecta o app caída | `az container show -n goof-app --query ipAddress.ip`; revisar `az container logs -n goof-app` |
+| ZAP no alcanza la app | IP privada incorrecta o app caída | `az container show -n web-dvwa --query ipAddress.ip`; revisar `az container logs -n web-dvwa` |
 | `az acr build` falla | Repo privado o Dockerfile ausente | Usar tu fork público; verificar que el repo tenga `Dockerfile` en la raíz |
 | **Tailscale no conecta desde VM-Spoke1** | Egreso bloqueado por Zentyal | Tailscale sale por 443 (DERP relay); asegúrate de permitir 443 saliente en Zentyal. Para conexión directa, permitir UDP 41641 saliente (opcional) |
 | **No accedo a las IP privadas por Tailscale** | Rutas no aprobadas o no aceptadas | Aprobar las subredes en la consola de Tailscale (Machines → VM-Spoke1 → route settings) y activar “Use Tailscale subnets” en el equipo |
