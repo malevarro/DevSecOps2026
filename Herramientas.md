@@ -21,3 +21,4 @@ En el siguiente conjunto de enlaces se relacionan las diferentes herramientas qu
 | Qwiet.ai | <https://qwiet.ai/> | <center><img alt="QuietLogo" src="./Images/Qwiet_Logo.jpg" height="80"></center> |
 | Microsoft Defender for Cloud | <https://learn.microsoft.com/en-us/azure/defender-for-cloud/> | <center><img alt="adfclogo" src="./Images/azureseccloud.png" height="80"></center> |
 | OWASP Threat Dragon | <https://owasp.org/www-project-threat-dragon/> | <center><img alt="dragonlogo" src="./Images/dragonlogo.png" height="80"></center> |
+| MobaXterm | <https://mobaxterm.mobatek.net/> | <center><img alt="mobalogo" src="./Images/mobaxterm.png" height="80"></center> |
