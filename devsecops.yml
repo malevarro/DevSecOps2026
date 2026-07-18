@@ -1,0 +1,125 @@
+name: DevSecOps CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write       
+  security-events: write
+  actions: read 
+
+jobs:
+  # ---------- 1. SAST / SCA sobre el código ----------
+  sast-sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0     # SonarCloud necesita el historial completo
+
+      - name: SonarCloud (SAST)
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: Snyk (SCA/SAST)
+        uses: snyk/actions/php@master
+        continue-on-error: true      # gate informativo; pon 'false' para bloquear
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: code test
+          args: --sarif-file-output=snyk.sarif
+
+      - name: Upload Snyk result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Qwiet preZero (SAST)
+        uses: elangosenthilnathan/Qwiet-preZero@v0.0.2
+        continue-on-error: true
+        env:
+          SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
+        with:
+          shiftleft-access-token: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
+          importGitHub: true
+          verbose: true
+          strict: true
+#        run: |
+#          curl -s https://cdn.shiftleft.io/download/sl > sl && chmod +x sl
+#          ./sl analyze --app DVWA-${{ github.actor }} --tag branch=main --php .
+
+  # ---------- 2. IaC / Dockerfile ----------
+  iac-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - name: Checkov (IaC + Dockerfile)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: dockerfile,secrets
+          soft_fail: true            # informativo; quítalo para que sea gate estricto
+
+      - name: Upload Checkov result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+  # ---------- 3. Build + escaneo de imagen + push ----------
+  build-scan-push:
+    needs: [ sast-sca, iac-scan ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Login al ACR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Construir la imagen
+        run: docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/dvwa:${{ github.sha }} .
+
+      - name: Trivy (escaneo de la imagen)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ secrets.ACR_LOGIN_SERVER }}/dvwa:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'             # informativo; '1' para bloquear con CRITICAL/HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() # Ensures results are uploaded even if vulnerabilities are found
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Publicar la imagen en el ACR
+        run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/dvwa:${{ github.sha }}
+
+  # ---------- 4. Deploy a Azure App Service (OIDC) ----------
+  deploy:
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    environment: production          # gate opcional: revisor requerido
+    steps:
+      - name: Login a Azure con OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Desplegar la imagen al App Service
+        uses: azure/webapps-deploy@v3.0.8
+        with:
+          app-name: app-dvwa-GPP       # reemplaza por tu WEBAPP
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/dvwa:${{ github.sha }}
